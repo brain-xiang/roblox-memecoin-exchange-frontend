@@ -1,0 +1,14 @@
+{
+  "files.exclude": {
+    "src/_framework/": true,
+    ".vscode": true
+  },
+  "Lua.diagnostics.globals": [
+    "game",
+    "Spawn"
+  ],
+  "files.autoSave": "onWindowChange",
+  "Lua.diagnostics.disable": [
+    "unknown-symbol"
+  ]
+}
