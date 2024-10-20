@@ -10,7 +10,14 @@ local UPPDATE_LOCAL_CACHE_EVENT = "UppdateCache"
 local UPPDATE_PLAYER_CACHE_EVENT = "UppdatePlayerCache"
 
 ReplicatedCache.defaultCache = {
-
+    coins = nil,
+    booths = {
+        --[[Booth = {
+            claimed = false or userId
+            coin = false or tokenAddress
+            events = {table of active events}
+        }]]
+    }
 }
 
 ReplicatedCache.defaultPlayerCache = {

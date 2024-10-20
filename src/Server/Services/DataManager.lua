@@ -31,8 +31,8 @@ DataManager.Data = {
             }
         }]]
     },
-    coins = {
-        --[[{
+    coins = {   --[[
+        tokenAddress = {
             name: string;
             symbol: string;
             description: string;
@@ -43,16 +43,38 @@ DataManager.Data = {
             robloxlogo: string;
             buyPrice: string;
             sellPrice: string;
-            tokenAddress: string;
-            creatorWalletAdress: string;
+            creatorWalletAddress: string;
             creatorRobloxUserId: string;
         }]]
     }
 }
 DataManager.copiedProfiles = {}
 
+--[[
+coins json format
+
+[
+    {
+        name: string;
+        symbol: string;
+        description: string;
+        decimals: number;
+        supply: string;
+        chain: string; -- all caps
+        logo: string;
+        robloxlogo: string;
+        buyPrice: string;
+        sellPrice: string;
+        tokenAddress: string;
+        creatorWalletAddress: string;
+        creatorRobloxUserId: string;
+    }
+]
+
+]]
+
 -- 60 requests per minute roblxo rate limit
-local user_data_update_frequency = 25 -- every 4 seconds get every user in this server's data from db
+local user_data_update_frequency = 25 -- every 2 seconds get every user in this server's data from db
 local coin_data_update_frequency = 25 -- every 2 seconds get data of all coins globally from db 
 local user_update_delay = 60/user_data_update_frequency
 local coin_update_delay = 60/user_data_update_frequency
@@ -96,6 +118,31 @@ function DataManager:getPlayerData(player)
     else
         -- Handle any errors
         warn("failed to retrieve player data: " .. response)
+    end
+end
+
+function DataManager:getCoinData()
+    print("Getting all coin data")
+
+
+    local success, response = pcall(function()
+        return HttpService:GetAsync("https://memecoin-backend-3w6fx.ondigitalocean.app/wallets?")
+    end)
+
+    if success then
+        -- Handle the response
+        print("successfully retrieved all coin data")
+        local coins = HttpService:JSONDecode(response)
+        self.Data.coins = {}
+        for i,coin in pairs(coins) do
+            local tokenAddress = coin.tokenAddress
+            coin.tokenAddress = nil
+            if coin.chain == "BASESEPOLIA" then coin.chain = "BASE" end
+            self.Data.coins[tokenAddress] = coin
+        end
+    else
+        -- Handle any errors
+        warn("failed to retrieve coin data: " .. response)
     end
 end
 
@@ -151,6 +198,8 @@ function DataManager:copyToReplicatedCache(player)
             self.copiedProfiles[userid] = clone
         end
     end
+
+    ReplicatedCache.cache.coins = TableUtil.Copy(self.Data.coins)
 end
 
 ----- Initialize -----
@@ -181,6 +230,7 @@ function DataManager:Init()
     ReplicatedCache = self.Services.ReplicatedCache
     TableUtil = self.Shared.TableUtil
     Signal = self.Shared.Signal
+
 
     self.dataUpdatedSignal = Signal.new()
 end
