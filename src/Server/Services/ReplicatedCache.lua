@@ -10,39 +10,11 @@ local UPPDATE_LOCAL_CACHE_EVENT = "UppdateCache"
 local UPPDATE_PLAYER_CACHE_EVENT = "UppdatePlayerCache"
 
 ReplicatedCache.defaultCache = {
-    score = {
-        Team1 = 0,
-        Team2 = 0,
-    },
-    capturePoints = {
-        A = {},
-        B = {},
-        C = {},
-    },
-    Leaderboard = {}, --[UserId] = {player leaderboard}
+
 }
 
 ReplicatedCache.defaultPlayerCache = {
-    ShipStats = nil,
-    ShipVariables = nil,
-    state = "loading", --[[
-        loading
-        deploy
-        alive
-        sinking
-    ]]
     profile = nil, -- Data Store profileService profile
-    lastDeath = 0, -- last death in 
-    ship = nil,
-    earnings = {
-        db = {
-        --  category* = amount*
-            total = 0
-        },
-        xp = {
-            total = 0
-        },
-    }
 }
 
 function ReplicatedCache.Client:getCache(player)
