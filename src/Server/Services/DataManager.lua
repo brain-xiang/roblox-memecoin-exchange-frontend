@@ -126,7 +126,7 @@ function DataManager:getCoinData()
 
 
     local success, response = pcall(function()
-        return HttpService:GetAsync("https://memecoin-backend-3w6fx.ondigitalocean.app/wallets?")
+        return HttpService:GetAsync("https://memecoin-backend-3w6fx.ondigitalocean.app/coins")
     end)
 
     if success then
@@ -135,10 +135,12 @@ function DataManager:getCoinData()
         local coins = HttpService:JSONDecode(response)
         self.Data.coins = {}
         for i,coin in pairs(coins) do
-            local tokenAddress = coin.tokenAddress
-            coin.tokenAddress = nil
-            if coin.chain == "BASESEPOLIA" then coin.chain = "BASE" end
-            self.Data.coins[tokenAddress] = coin
+            if coin.tokenAddress then 
+                local tokenAddress = coin.tokenAddress
+                coin.tokenAddress = nil
+                if coin.chain == "BASESEPOLIA" then coin.chain = "BASE" end
+                self.Data.coins[tokenAddress] = coin
+            end
         end
     else
         -- Handle any errors
@@ -220,6 +222,7 @@ function DataManager:Start()
 
     while task.wait(user_update_delay) do
         self:getPlayerData()
+        self:getCoinData()
         self:copyToReplicatedCache()
         self.dataUpdatedSignal:Fire()
     end

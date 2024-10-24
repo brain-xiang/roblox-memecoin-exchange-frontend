@@ -7,6 +7,7 @@
 local CoinController = {}
 
 local Booths = workspace.Booths
+local HttpService = game:GetService("HttpService")
 
 --UI
 local player = game.Players.LocalPlayer
@@ -43,13 +44,16 @@ function CoinController:updateTotal(mode)
     if not claimedCoin then return end
     local coinData = LocalCache.cache.coins[claimedCoin]
 
+    print(coinData)
+
     local amount = tonumber(BuyScreen.BidAmount.TextBox.Text)
+    print(amount)
     if not amount then BuyScreen.BidAmount.TextBox.Text = "" return end
     if mode == "Buy" then
-        local total = amount / coinData.buyAmount
+        local total = amount / coinData.buyPrice
         BuyScreen.Total.Text = formatNumber(total).. " ".. coinData.symbol
     else
-        local total = amount / coinData.sellAmount
+        local total = amount / coinData.sellPrice
         BuyScreen.Total.Text = formatNumber(total).. " ".. ChainConfigs.chain_to_currency[coinData.chain]
     end
 end
@@ -62,12 +66,12 @@ function CoinController:selectMode(mode)
 
     if mode == "Buy" then
         BuyScreen.BidAmount.ChainIcon.Image = ChainConfigs.chain_icons[coinData.chain]
-        BuyScreen.BidAmount.ChainIcon.ChainName.Text = ChainConfigs.chain_to_currency[coinData.chain]
+        BuyScreen.BidAmount.ChainName.Text = ChainConfigs.chain_to_currency[coinData.chain]
         BuyScreen.Price.Text = "Price: ".. coinData.buyPrice.. " ".. ChainConfigs.chain_to_currency[coinData.chain]
         self:updateTotal(mode)
     elseif mode == "Sell" then
         BuyScreen.BidAmount.ChainIcon.Image = coinData.robloxlogo
-        BuyScreen.BidAmount.ChainIcon.ChainName.Text = coinData.symbol
+        BuyScreen.BidAmount.ChainName.Text = coinData.symbol
         BuyScreen.Price.Text = "Price: ".. coinData.sellPrice.. " ".. coinData.symbol
         self:updateTotal(mode)
     end
@@ -76,20 +80,20 @@ end
 
 function CoinController:promptBuyScreen(Booth, mode)
     local mode = mode or "Buy"
-    local claimedCoin = LocalCache.cache.booths[Booth].coin
+    local claimedCoin = LocalCache.cache.booths[Booth.Name].coin
     if claimedCoin then
         local coinData = LocalCache.cache.coins[claimedCoin]
 
-        BuyScreen.CoinName.Text = coinData.name
+        BuyScreen.CoinName.Text = coinData.symbol
         BuyScreen.Description.Text = coinData.description
         BuyScreen.tokenAddress.Text = "Coin Address: ".. claimedCoin
         BuyScreen.CoinIcon.Image = coinData.robloxlogo
 
-        BuyScreen.Creator.Text = "Creator: ".. game.Players:GetPlayerByUserId(coinData.creatorRobloxUserId).Name
+        BuyScreen.Creator.Text = "Creator: ".. game.Players:GetPlayerByUserId(coinData.robloxUserId).Name
 
         local MarketCap = formatNumber(coinData.buyPrice * coinData.supply)
         BuyScreen.MarketCap.Text = "Market Cap: $".. MarketCap
-
+            
         self.store.buysellSelect.states.selected = mode
     end
 end
@@ -108,6 +112,9 @@ function CoinController:confirmTrade()
     else -- Sell
 
     end
+
+    self.interactingBooth = nil
+    BuyScreen.Visible = false
 end
 
 function CoinController:SetupEmptyBooth(Booth)
@@ -118,9 +125,9 @@ function CoinController:SetupEmptyBooth(Booth)
     end)
     local InteractPrompt = Booth.Base.InteractPrompt
     InteractPrompt.Triggered:Connect(function(player)
+        self.interactingBooth = Booth.Name
         self:promptBuyScreen(Booth)
         BuyScreen.Visible = true
-        self.interactingBooth = Booth
     end)
 end
 
@@ -132,21 +139,19 @@ function CoinController:createCoin()
     for i,frame in pairs(CreateCoinScreenList:GetChildren()) do
         if frame.Name == "Chain" then
             coinData["chain"] = self.store.selectChainInCreate.states.selected
+        elseif frame.Name == "robloxlogo" then
+            coinData["robloxlogo"] = frame.TextBox.Text or "rbxassetid://140499984404999"
         elseif frame:IsA("Frame") then
             coinData[frame.Name] = frame.TextBox.Text
         end
     end
+    coinData.robloxUserId = tostring(player.UserId)
+    coinData.creatorWalletAddress = LocalCache.playerCache.profile.walletAddress
 
-    -- fire http
     local temptxt = CreateCoinButton.TextLabel.Text
     CreateCoinButton.TextLabel.Text = "Loading..."
 
-    print(coinData)
-
-    task.wait(1)
-
-    -- if successfully created coin
-    CoinService.setupBooth:Fire(player, self.pendingBooth, tokenAddress)
+    local success = CoinService:createCoin(coinData, self.pendingBooth.Name)
 
     -- after all processsing
     self.pendingBooth = nil
@@ -160,9 +165,7 @@ function CoinController:Start()
 
     self.store = {
         selectChainInCreate = Robi.create(CreateCoinScreenList.Chain, RobiClasses.SelectFrame),
-        buysellSelect = Robi.create(BuySellSelectFrame, {
-            [RobiClasses.SelectFrame] = {"Buy"}
-        })
+        buysellSelect = Robi.create(BuySellSelectFrame, RobiClasses.SelectFrame)
     }
     Robi:run(self.store)
 
@@ -171,6 +174,7 @@ function CoinController:Start()
     end
 
     self.store.buysellSelect.states:GetPropertyChangedSignal("selected"):Connect(function(old, new)
+        print("state changed ", new)
         self:selectMode(new)
     end)
 

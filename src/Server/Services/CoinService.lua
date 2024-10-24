@@ -7,6 +7,7 @@
 local CoinService = {Client = {}}
 
 local Booths = workspace.Booths
+local HttpService = game:GetService("HttpService")
 
 local boothDataTemplate = {
     claimed = false,
@@ -26,25 +27,37 @@ local function formatNumber(num)
     return formatted
 end
 
-function CoinService:setupBooth(player, Booth, tokenAddress)
-    
-    if ReplicatedCache.cache.booths[Booth].claimed then warn(player.Name.. " cant claim booth: ".. Booth.name.. " allready owned by: ".. ReplicatedCache.cache.booths[Booth].claimed) return end
+function CoinService:setupBooth(player, BoothName, name)
+    if ReplicatedCache.cache.booths[BoothName].claimed then warn(player.Name.. " cant claim booth: ".. BoothName.. " allready owned by: ".. ReplicatedCache.cache.booths[BoothName].claimed) return end
 
     -- wait untl the coin data is available in db
     local maxRepeats = 10
     local repeats = 0
-    repeat 
+    local tokenAddress
+    local coinData
+    while true do
         DataManager.dataUpdatedSignal:Wait()
         repeats = repeats + 1
-    until
-        DataManager.Data.coins[tokenAddress] or repeats >= maxRepeats
-    if repeats >= maxRepeats then warn("Exeeded maxRepeats, new created coin did not arrive in database - ".. tokenAddress .. " booth: ".. Booth.Name.. " Player: ".. "player.Name") return end
+        for i,v in pairs(DataManager.Data.coins) do
+            if v.name == tostring(name) then
+                tokenAddress = i
+                coinData = v
+                break
+            end
+        end
+        if tokenAddress then break end
+        if repeats >= maxRepeats then
+            warn("Exeeded maxRepeats, new created coin did not arrive in database - ".. tokenAddress .. " booth: ".. BoothName.. " Player: ".. "player.Name")
+            return
+        end
+    end 
 
-    local coinData = DataManager.Data.coins[tokenAddress]
+    ReplicatedCache.cache.booths[BoothName].claimed = player.UserId
+    ReplicatedCache.cache.booths[BoothName].coin = tokenAddress
+    print("TOKE ADREESS", tokenAddress)
 
-    ReplicatedCache.cache.booths[Booth].claimed = player.UserId
-    ReplicatedCache.cache.booths[Booth].coin = tokenAddress
-
+    local Booth = Booths[BoothName]
+        
     Booth.Base.ClaimPrompt.Enabled = false
     Booth.Base.InteractPrompt.Enabled = true
     Booth.Base.Unclaimed.Enabled = false
@@ -52,14 +65,16 @@ function CoinService:setupBooth(player, Booth, tokenAddress)
     Booth.Base.ClaimedInfoDisplay.UserName.Text = player.Name.. "'s coin"
 
     Booth.ImageFrame.Picture.Decal.Texture = coinData.robloxlogo
-    Booth.NamePart.SurfaceGui.Txt.Text = coinData.name
+    Booth.ImageFrame.Picture.Decal.Transparency = 0
+    Booth.NamePart.SurfaceGui.Txt.Text = coinData.symbol
     Booth.PricePart.SurfaceGui.Enabled = true
     Booth.PricePart.SurfaceGui.ChainIcon.Image = ChainConfigs.chain_icons[coinData.chain]
 end
 
 function CoinService:updateActiveBooths()
-    for Booth, boothData in pairs(ReplicatedCache.cache.booths) do
-        local claimedUserid = ReplicatedCache.cache.booths[Booth].claimed
+    for BoothName, boothData in ReplicatedCache.cache.booths:pairs() do
+        local Booth = Booths[BoothName]
+        local claimedUserid = ReplicatedCache.cache.booths[BoothName].claimed
         if claimedUserid then
             local coinData = DataManager.Data.coins[boothData.coin]
 
@@ -71,7 +86,7 @@ function CoinService:updateActiveBooths()
 end
 
 function CoinService:resetBooth(Booth)
-    local claimedCoin = ReplicatedCache.cache.booths[Booth].coin
+    local claimedCoin = ReplicatedCache.cache.booths[Booth.Name].coin
     if claimedCoin then
         Booth.Base.ClaimPrompt.Enabled = true
         Booth.Base.InteractPrompt.Enabled = false
@@ -82,24 +97,45 @@ function CoinService:resetBooth(Booth)
         Booth.NamePart.SurfaceGui.Txt.Text = ""
         Booth.PricePart.SurfaceGui.Enabled = false
 
-        ReplicatedCache.cache.booths[Booth].claimed = false
-        ReplicatedCache.cache.booths[Booth].coin = false
+        ReplicatedCache.cache.booths[Booth.Name].claimed = false
+        ReplicatedCache.cache.booths[Booth.Name].coin = false
+    end
+end
+
+function CoinService.Client:createCoin(player, coinData, BoothName)
+    -- fire http
+    local payload = HttpService:JSONEncode(coinData)
+
+    local success, response = pcall(function()
+        return HttpService:PostAsync("https://memecoin-backend-3w6fx.ondigitalocean.app/coins", payload)
+    end)
+
+    if success then
+        print("successfully created the coin")
+        local responseData = HttpService:JSONDecode(response)
+        print(responseData, "response data")
+        local name = responseData.name
+        CoinService:setupBooth(player, BoothName, name)
+    else
+        warn("Failed to create a coin", response)
     end
 end
 
 function CoinService:Start()
 	
     for i,Booth in pairs(Booths:GetChildren()) do
-        ReplicatedCache.cache.booths[Booth] = TableUtil.Copy(self.boothDataTemplate)
+        ReplicatedCache.cache.booths[Booth.Name] = TableUtil.Copy(boothDataTemplate)
     end
 
-    self.ConnectClientEvent("setupBooth", function(...)
-        self:setupBooth(...)
+    self:ConnectClientEvent("setupBooth", function(player, BoothName, tokenAddress)
+        self:setupBooth(player, BoothName, tokenAddress)
     end)
 
     DataManager.dataUpdatedSignal:Connect(function()
         self:updateActiveBooths()
     end)
+
+    --self:setupBooth(game.Players:WaitForChild("Legenderox"), "Booth2", "tokenAddress")
 end
 
 
@@ -107,7 +143,7 @@ function CoinService:Init()
     ReplicatedCache = self.Services.ReplicatedCache
     DataManager = self.Services.DataManager
     TableUtil = self.Shared.TableUtil
-    ChainConfigs = self.shared.ChainConfigs
+    ChainConfigs = self.Shared.ChainConfigs
 
 	self:RegisterClientEvent("setupBooth")
 end
