@@ -15,7 +15,7 @@ This is the Roblox end of the submission for the EthGlobal 2024 SF 36 hour Hacka
 
 
 **Repositories**
-* Roblox gamplay / frontend: https://github.com/brain-xiang/memecoins-on-roblox
+* Roblox gamplay / frontend: https://github.com/brain-xiang/roblox-memecoin-exchange-frontend
 * Server backend and smart contracts: https://github.com/iganbold/roblox-memecoin
 
 ### Project Description
